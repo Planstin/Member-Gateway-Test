@@ -1,0 +1,4 @@
+%dw 2.0
+
+type auto_6cf6bdf0_745b_4295_8139_ba3b78281040_Output_Variables_patientsQuery = Any
+

@@ -1,0 +1,21 @@
+hint-api:
+  host: "api.staging.hint.com"
+  base-path: "/api/provider"
+  get-membership: "/memberships"
+  get-patient: "/patients"
+
+aws-secret-manager:
+  region: "us-west-1"
+  secret-key: ""
+  access-key: ""
+
+aws-redshift:  
+  query:
+    membership:
+      bulk-insert: "INSERT INTO planstinvault_dev.member_gateway.staging_membership (     membership_id,    patient_id,     created_at,     updated_at,     status,     enrollment_status,     rate_in_cents,     bill_date,     last_bill_date,     next_bill_date,     billed_through_date,     billing_start_date,     bills_at_end_of_period,     start_date,     end_date ) VALUES ( :membership_id, :patient_id, :created_at, :updated_at, :status, :enrollment_status, :rate_in_cents, :bill_date, :last_bill_date, :next_bill_date, :billed_through_date, :billing_start_date, :bills_at_end_of_period, :start_date, :end_date );"
+      bulk-update: "UPDATE planstinvault_dev.member_gateway.staging_membership SET patient_id = :patient_id,     created_at = :created_at,     updated_at = :updated_at,     status = :status,     enrollment_status = :enrollment_status,     rate_in_cents = :rate_in_cents,     bill_date = :bill_date,     last_bill_date = :last_bill_date,     next_bill_date = :next_bill_date, billed_through_date = :billed_through_date, billing_start_date = :billing_start_date, bills_at_end_of_period = :bills_at_end_of_period, start_date = :start_date, end_date = :end_date WHERE membership_id = :membership_id;"
+      select: "select membership_id from planstinvault_dev.member_gateway.staging_membership where membership_id in "
+    patient:
+      bulk-insert: "insert into planstinvault_dev.public.staging_patient (patient_id,primary_subscriber_id,created_at,updated_at,electronic_communication_consent_accepted,electronic_communication_consent_accepted_at,patient_agreement_accepted,patient_agreement_accepted_at,hipaa_authorization_accepted,hipaa_authorization_accepted_at,terms_accepted,terms_accepted_at,first_name,last_name,middle_name,address_line1,address_line2,address_city,address_state,address_zip,dob,membership_status,joined_practice_date,email,gender,primary_phone,alternate_phone,uses_tobacco) values(:patient_id,:primary_subscriber_id,:created_at,:updated_at,:electronic_communication_consent_accepted,:electronic_communication_consent_accepted_at,:patient_agreement_accepted,:patient_agreement_accepted_at,:hipaa_authorization_accepted,:hipaa_authorization_accepted_at,:terms_accepted,:terms_accepted_at,:first_name,:last_name,:middle_name,:address_line1,:address_line2,:address_city,:address_state,:address_zip,:dob,:membership_status,:joined_practice_date,:email,:gender,:primary_phone,:alternate_phone,:uses_tobacco)"
+      bulk-update: "UPDATE staging_patient SET primary_subscriber_id = :primary_subscriber_id, created_at = :created_at,updated_at = :updated_at,electronic_communication_consent_accepted = :electronic_communication_consent_accepted, electronic_communication_consent_accepted_at = :electronic_communication_consent_accepted_at,patient_agreement_accepted = :patient_agreement_accepted,patient_agreement_accepted_at = :patient_agreement_accepted_at, hipaa_authorization_accepted = :hipaa_authorization_accepted, hipaa_authorization_accepted_at = :hipaa_authorization_accepted_at,terms_accepted = :terms_accepted, terms_accepted_at = :terms_accepted_at, first_name = :first_name, last_name = :last_name, middle_name = :middle_name, address_line1 = :address_line1, address_line2 = :address_line2, address_city = :address_city, address_state = :address_state, address_zip = :address_zip, dob = :dob, membership_status = :membership_status, joined_practice_date = :joined_practice_date, email = :email, gender = :gender, primary_phone = :primary_phone, alternate_phone = :alternate_phone, uses_tobacco = :uses_tobacco WHERE patient_id = :patient_id;"
+      select: "select patient_id from planstinvault_dev.public.staging_patient where patient_id in "

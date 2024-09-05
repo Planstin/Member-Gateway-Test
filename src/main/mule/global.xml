@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:os="http://www.mulesoft.org/schema/mule/os"
+	xmlns:aws-secrets-manager-properties-override="http://www.mulesoft.org/schema/mule/aws-secrets-manager-properties-override"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd 
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/aws-secrets-manager-properties-override http://www.mulesoft.org/schema/mule/aws-secrets-manager-properties-override/current/mule-aws-secrets-manager-properties-override.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="4889445a-132e-45bc-a279-5f394067f848" >
+		<http:listener-connection host="localhost" port="8081" />
+	</http:listener-config>
+	
+	<db:config name="Database_Config" doc:name="Database Config" doc:id="8a0ab6f5-f2e6-484c-a471-ba81284df602" >
+		<db:generic-connection url="#[vars.awsRedshiftdbCreds.'aws-redshift-db.url']" driverClassName="com.amazon.redshift.Driver" user="#[vars.awsRedshiftdbCreds.'aws-redshift-db.username']" password="#[vars.awsRedshiftdbCreds.'aws-redshift-db.password']" />
+	</db:config>
+	<configuration-properties doc:name="Configuration properties" doc:id="25aac5dd-d2ba-47a2-9db2-886b64aa9433" file="properties\config-${env}.yaml" />
+	<os:object-store name="Patients_Object_store" doc:name="Object store" doc:id="139c4636-7d54-4c1b-b887-0e8c2a8f9d08" />
+	<http:request-config name="HTTP_Request_configuration" doc:name="HTTP Request configuration" doc:id="6afeb9fa-ea2f-4b57-ba2a-f5c78601838c" basePath="${hint-api.base-path}" >
+		<http:request-connection host="${hint-api.host}" />
+	</http:request-config>
+	
+</mule>

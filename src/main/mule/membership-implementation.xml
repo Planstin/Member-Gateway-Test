@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:aws-secrets-manager-properties-override="http://www.mulesoft.org/schema/mule/aws-secrets-manager-properties-override" xmlns:os="http://www.mulesoft.org/schema/mule/os"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:redshift="http://www.mulesoft.org/schema/mule/redshift" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/redshift http://www.mulesoft.org/schema/mule/redshift/current/mule-redshift.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd
+http://www.mulesoft.org/schema/mule/aws-secrets-manager-properties-override http://www.mulesoft.org/schema/mule/aws-secrets-manager-properties-override/current/mule-aws-secrets-manager-properties-override.xsd">
+	<flow name="membership-Flow" doc:id="4a963827-556c-4e36-a86e-c552cc04fc20" >
+		<http:listener doc:name="Listener" doc:id="70e36fd6-f05e-4c8e-8ccb-14470899e91c" path="/membership" config-ref="HTTP_Listener_config"/>
+		<logger level="INFO" doc:name="Logger" doc:id="2451151c-3e3f-4621-bbbf-826b53705482" message="Start - Memberships flow has been triggered"/>
+		<ee:transform doc:name="DW-fetch-creds-from-aws-secret-manager" doc:id="f514550a-4e4a-4861-8fd5-3fbf3d0cba71">
+			<ee:message>
+			</ee:message>
+			<ee:variables>
+				<ee:set-variable variableName="hintApiAuthToken" ><![CDATA[%dw 2.0
+output application/json
+import java!org::mycompany::utils::AWSSecrets
+---
+read(AWSSecrets::GetSecrets("test/membergateway-creds", Mule::p('aws-secret-manager.access-key'), Mule::p('aws-secret-manager.secret-key')),"application/json")."hint-api.auth-token"]]></ee:set-variable>
+				<ee:set-variable variableName="awsRedshiftdbCreds" ><![CDATA[%dw 2.0
+output application/json
+import java!org::mycompany::utils::AWSSecrets
+---
+read(AWSSecrets::GetSecrets("test/membergateway-creds", Mule::p('aws-secret-manager.access-key'), Mule::p('aws-secret-manager.secret-key')),"application/json")]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<os:clear doc:name="Clear" doc:id="c6d2da6f-d21e-4a9c-815a-0b55b87b167d" objectStore="membership_Object_store"/>
+		<os:retrieve doc:name="Retrieve" doc:id="618b1bae-3d3e-4762-8eaf-1a68f3c825a1" key="lastRunDate" objectStore="membership_Object_store" target="lastRunDate">
+			<os:default-value ><![CDATA[#[now() - |P2M|]]]></os:default-value>
+		</os:retrieve>
+		<http:request method="GET" doc:name="Request" doc:id="82e9ecd9-49ef-449b-8441-967f8cc397b9" path="${hint-api.get-membership}" config-ref="HTTP_Request_configuration">
+			<http:headers ><![CDATA[#[{
+	"Authorization": vars.hintApiAuthToken
+}]]]></http:headers>
+		</http:request>
+		<ee:transform doc:name="VAR hintMembershipsDeltaData" doc:id="1100e957-e4f8-4d77-9171-f4b2599dc40c" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="hintMembershipsDeltaData" ><![CDATA[%dw 2.0
+output application/json
+---
+payload filter($.updated_at > vars.lastRunDate) map {
+
+    "membership_id": $.id,
+    "patient_id": $.membership_patients.patient.id joinBy ",",
+    "created_at": ((($.created_at as DateTime) as DateTime {format : "yyyy-MM-dd hh:mm:ss"})) default null,
+    "updated_at": (($.updated_at as DateTime) as DateTime {format : "yyyy-MM-dd hh:mm:ss"}) default null,
+    status: $.status default null,
+    enrollment_status: $.enrollment_status default null,
+    rate_in_cents: $.rate_in_cents default null,
+    bill_date: ($.bill_date as Date) default null,
+    last_bill_date: ($.last_bill_date as Date)  default null,
+    next_bill_date: ($.next_bill_date as Date)  default null,
+    billed_through_date: ($.billed_through_date as Date) default null,
+    billing_start_date: ($.billing_start_date as Date) default null,
+    bills_at_end_of_period: ($.bills_at_end_of_period as Date) default null,
+    start_date: ($.start_date as Date) default null ,
+    end_date: ($.end_date as Date) default null 
+}]]></ee:set-variable>
+			
+</ee:variables>
+		
+</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="b7903589-e148-4eac-8202-f0db11691404" message="#[vars.hintMembershipsDeltaData]"/>
+		<choice doc:name="Choice" doc:id="54ffd0e7-e4d3-4a9c-92b4-b3fac17d9b65" >
+			<when expression="#[!isEmpty(vars.hintMembershipsDeltaData)]">
+				<flow-ref doc:name="membershipDeltaLoadFlow" doc:id="d8fa1ef5-1a6b-48d2-8c13-6d1733c53454" name="membershipDeltaLoadFlow"/>
+				<ee:transform doc:name="Transform Message" doc:id="3288de41-e77e-461c-b963-f7517e6896dd">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+sizeOf(vars.insertMemberships) ++ "records has been loaded"]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+			
+</when>
+			<otherwise >
+				<logger level="INFO" doc:name="Logger" doc:id="71522dde-726c-490e-aabd-7608ae6fb753" message="no records from hint"/>
+			</otherwise>
+		</choice>
+		<os:store doc:name="Store" doc:id="c36f1e80-5f40-4d6a-a46d-f3f327ab0e9b" key="lastRunDate" objectStore="membership_Object_store">
+					<os:value><![CDATA[#[now()]]]></os:value>
+				</os:store>
+		<logger level="INFO" doc:name="Logger" doc:id="9cf3a280-37b1-488c-9bea-b12c436552e8" message="memberships flow has been ended"/>
+	
+
+</flow>
+	<flow name="membershipDeltaLoadFlow" doc:id="6cf6bdf0-745b-4295-8139-ba3b78281040" >
+		<set-variable value="#[output java ---&#10;p('aws-redshift.query.membership.select') ++ &quot;('&quot; ++ (vars.hintMembershipsDeltaData.membership_id joinBy  &quot;','&quot;) ++ &quot;')&quot;]" doc:name="memberhipsQuery" doc:id="875647e7-bac8-4d02-af4d-079df4e2f1a3" variableName="memberhipsQuery" />
+		<db:select doc:name="Select" doc:id="07f15e24-13cb-4b87-98bb-d53589825e1c" target="existingDbMemberships" config-ref="Database_Config">
+			<db:sql ><![CDATA[#[vars.memberhipsQuery]]]></db:sql>
+		</db:select>
+		<ee:transform doc:name="Transform Message" doc:id="2a6140f6-30f6-4be3-b404-84a30423e536" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="insertMemberships" ><![CDATA[%dw 2.0
+output application/json
+---
+vars.hintMembershipsDeltaData filter (!(vars.existingDbMemberships.membership_id contains $.membership_id))]]></ee:set-variable>
+				<ee:set-variable variableName="updateMemberships" ><![CDATA[%dw 2.0
+output application/json
+---
+vars.hintMembershipsDeltaData filter (vars.existingDbMemberships.membership_id contains $.membership_id)]]></ee:set-variable>
+			
+</ee:variables>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="9e62c54a-4f27-4c63-b98f-63861b4738f9" message="#[vars.insertMemberships]"/>
+		<choice doc:name="Choice" doc:id="4257cdce-242a-45e5-90fb-b9921def8d10" >
+			<when expression="#[!isEmpty(vars.insertMemberships)]">
+				<logger level="INFO" doc:name="Logger" doc:id="63f9a95e-a345-4d08-8009-74d7c40ce80a" message="Insert data  in DB"/>
+				<db:bulk-insert doc:name="Bulk insert" doc:id="852c511a-5de0-4eac-b0ca-3724b42a46e3" config-ref="Database_Config">
+					<db:bulk-input-parameters><![CDATA[#[vars.insertMemberships]]]></db:bulk-input-parameters>
+					<db:sql><![CDATA[${aws-redshift.query.membership.bulk-insert}]]></db:sql>
+				</db:bulk-insert>
+			</when>
+			<otherwise >
+				<logger level="INFO" doc:name="Logger" doc:id="2cf4abb0-28cb-4934-9b42-228f0dce563c" message="No records found to be inserted" />
+			</otherwise>
+		</choice>
+		<choice doc:name="Choice" doc:id="393cb7a7-2e22-429d-b800-96f4da44c948" >
+			<when expression="#[!isEmpty(vars.updateMemberships)]">
+				<logger level="INFO" doc:name="Logger" doc:id="9603ea67-847b-4213-9a8a-19175427293c" message="Updating data in db" />
+				<db:bulk-update doc:name="Bulk update" doc:id="57916541-339a-4592-8cf1-6e7ccb28f17f" config-ref="Database_Config">
+					<db:bulk-input-parameters ><![CDATA[#[vars.updateMemberships]]]></db:bulk-input-parameters>
+					<db:sql ><![CDATA[${aws-redshift.query.membership.bulk-update}]]></db:sql>
+				
+</db:bulk-update>
+			
+</when>
+			<otherwise >
+				<logger level="INFO" doc:name="Logger" doc:id="7a811054-8f34-409c-83c1-ef6004476ba9" message="No records found to be updated"/>
+			</otherwise>
+		</choice>
+	</flow>
+
+</mule>
